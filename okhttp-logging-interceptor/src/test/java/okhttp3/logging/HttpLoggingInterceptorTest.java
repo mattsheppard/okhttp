@@ -597,7 +597,7 @@ public final class HttpLoggingInterceptorTest {
           .assertLogEqual("Content-Encoding: br")
           .assertLogEqual("Content-Type: text/plain; charset=utf-8")
           .assertLogMatch("Content-Length: \\d+")
-          .assertLogEqual("<-- END HTTP (encoded body omitted)")
+          .assertLogEqual("<-- END HTTP (encoded 24-byte body omitted)")
           .assertNoMoreLogs();
 
       applicationLogs
@@ -607,7 +607,7 @@ public final class HttpLoggingInterceptorTest {
           .assertLogEqual("Content-Encoding: br")
           .assertLogEqual("Content-Type: text/plain; charset=utf-8")
           .assertLogMatch("Content-Length: \\d+")
-          .assertLogEqual("<-- END HTTP (encoded body omitted)")
+          .assertLogEqual("<-- END HTTP (encoded 24-byte body omitted)")
           .assertNoMoreLogs();
     }
 

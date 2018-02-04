@@ -217,8 +217,7 @@ public final class HttpLoggingInterceptor implements Interceptor {
     }
     long tookMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNs);
 
-    ResponseBody responseBody = response.body();
-    long contentLength = responseBody.contentLength();
+    long contentLength = response.body().contentLength();
     String bodySize = contentLength != -1 ? contentLength + "-byte" : "unknown-length";
     logger.log("<-- "
         + response.code()
@@ -234,50 +233,54 @@ public final class HttpLoggingInterceptor implements Interceptor {
 
       if (!logBody || !HttpHeaders.hasBody(response)) {
         logger.log("<-- END HTTP");
-      } else if (bodyHasUnknownEncoding(response.headers())) {
-        logger.log("<-- END HTTP (encoded body omitted)");
       } else {
-        BufferedSource source = responseBody.source();
-        source.request(Long.MAX_VALUE); // Buffer the entire body.
-        Buffer buffer = source.buffer();
+        ResponseBody responseBody = response.peekBody(Long.MAX_VALUE);
+        if (bodyHasUnknownEncoding(response.headers())) {
+          logger.log("<-- END HTTP (encoded "
+            + responseBody.bytes().length + "-byte body omitted)");
+        } else {
+          BufferedSource bufferedBody = responseBody.source();
+          bufferedBody.request(Long.MAX_VALUE);
+          Buffer buffer = bufferedBody.buffer();
 
-        Long gzippedLength = null;
-        if ("gzip".equalsIgnoreCase(headers.get("Content-Encoding"))) {
-          gzippedLength = buffer.size();
-          GzipSource gzippedResponseBody = null;
-          try {
-            gzippedResponseBody = new GzipSource(buffer.clone());
-            buffer = new Buffer();
-            buffer.writeAll(gzippedResponseBody);
-          } finally {
-            if (gzippedResponseBody != null) {
-              gzippedResponseBody.close();
+          Long gzippedLength = null;
+          if ("gzip".equalsIgnoreCase(headers.get("Content-Encoding"))) {
+            gzippedLength = buffer.size();
+            GzipSource gzippedResponseBody = null;
+            try {
+              gzippedResponseBody = new GzipSource(buffer.clone());
+              buffer = new Buffer();
+              buffer.writeAll(gzippedResponseBody);
+            } finally {
+              if (gzippedResponseBody != null) {
+                  gzippedResponseBody.close();
+              }
             }
           }
-        }
 
-        Charset charset = UTF8;
-        MediaType contentType = responseBody.contentType();
-        if (contentType != null) {
-          charset = contentType.charset(UTF8);
-        }
+          Charset charset = UTF8;
+          MediaType contentType = responseBody.contentType();
+          if (contentType != null) {
+            charset = contentType.charset(UTF8);
+          }
 
-        if (!isPlaintext(buffer)) {
-          logger.log("");
-          logger.log("<-- END HTTP (binary " + buffer.size() + "-byte body omitted)");
-          return response;
-        }
+          if (!isPlaintext(buffer)) {
+            logger.log("");
+            logger.log("<-- END HTTP (binary " + buffer.size() + "-byte body omitted)");
+            return response;
+          }
 
-        if (contentLength != 0) {
-          logger.log("");
-          logger.log(buffer.clone().readString(charset));
-        }
+          if (contentLength != 0) {
+            logger.log("");
+            logger.log(buffer.clone().readString(charset));
+          }
 
-        if (gzippedLength != null) {
-            logger.log("<-- END HTTP (" + buffer.size() + "-byte, "
-                + gzippedLength + "-gzipped-byte body)");
-        } else {
-            logger.log("<-- END HTTP (" + buffer.size() + "-byte body)");
+          if (gzippedLength != null) {
+              logger.log("<-- END HTTP (" + buffer.size() + "-byte, "
+                  + gzippedLength + "-gzipped-byte body)");
+          } else {
+              logger.log("<-- END HTTP (" + buffer.size() + "-byte body)");
+          }
         }
       }
     }
